@@ -1,0 +1,3 @@
+input_file = input.txt
+output_file = output.txt
+table_file = table.txt
