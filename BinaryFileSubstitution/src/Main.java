@@ -1,4 +1,3 @@
-import java.io.*;
 
 public class Main {
 
@@ -22,9 +21,9 @@ public class Main {
 
         Substitutor substitutor = new Substitutor(table);
 
-        int retCode = substitutor.FileToFile(inputFilename, outputFilename);
+        ErrorCode retCode = substitutor.FileToFile(inputFilename, outputFilename);
 
-        if (retCode != 0) {
+        if (retCode != ErrorCode.ERROR_OK) {
             // IO exception while processing files
             return 3;
         }
@@ -46,6 +45,9 @@ public class Main {
             return;
         }
 
+        /*
+        Числовые коды только в классе Main
+         */
         int code = Substitute(cfg);
 
         switch (code) {

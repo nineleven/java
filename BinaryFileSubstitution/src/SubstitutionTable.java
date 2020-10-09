@@ -25,7 +25,6 @@ public class SubstitutionTable {
      returns null in case of IO exception or if a line of wrong format was found
      */
     public static SubstitutionTable fromFile(String filename) {
-        SubstitutionTable subsTable;
 
         HashMap<String, String> stringTable = FileParser.readMap(filename, "");
         if (stringTable == null) {

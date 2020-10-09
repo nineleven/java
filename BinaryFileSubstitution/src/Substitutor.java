@@ -3,6 +3,12 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
+enum ErrorCode {
+    ERROR_OK,
+    ERROR_OPENING,
+    ERROR_READING
+}
+
 public class Substitutor {
 
     SubstitutionTable table;
@@ -11,7 +17,7 @@ public class Substitutor {
         this.table = table;
     }
 
-    public int FileToFile(String inputFilename, String outputFilename) {
+    public ErrorCode FileToFile(String inputFilename, String outputFilename) {
 
         FileInputStream inputStream;
         FileOutputStream outputStream;
@@ -20,7 +26,7 @@ public class Substitutor {
             outputStream = new FileOutputStream(outputFilename);
         } catch(FileNotFoundException | NullPointerException ex) {
             // unable to open files
-            return 1;
+            return ErrorCode.ERROR_OPENING;
         }
 
         int inputByteIntRepr;
@@ -33,9 +39,9 @@ public class Substitutor {
             }
         } catch (IOException ex) {
             // IO exception while processing files
-            return 2;
+            return ErrorCode.ERROR_READING;
         }
 
-        return 0;
+        return ErrorCode.ERROR_OK;
     }
 }
