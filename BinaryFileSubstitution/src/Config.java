@@ -19,12 +19,19 @@ public class Config {
         return value;
     }
 
-    /*
-     reads a config from file assuming the default delimiter "="
-     see fromFile(String filename, String delimiter) for details
-     */
-    public static Config fromFile(String filename) {
-        return fromFile(filename, "=");
+    public Integer getIntParameter(String key) {
+        String stringParameter = getParameter(key);
+        if (stringParameter == null) {
+            return null;
+        }
+        Integer value;
+        try {
+            value = Integer.parseInt(stringParameter);
+        }
+        catch (NumberFormatException ex) {
+            value = null;
+        }
+        return value;
     }
 
     /*

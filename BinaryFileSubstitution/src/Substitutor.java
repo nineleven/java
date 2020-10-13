@@ -1,12 +1,86 @@
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 
 enum ErrorCode {
     ERROR_OK,
-    ERROR_OPENING,
-    ERROR_READING
+    ERROR_IO
+}
+
+class InputFileReader {
+
+    private FileInputStream stream;
+    private String filename;
+
+    public InputFileReader(String filename) {
+        this.filename = filename;
+    }
+
+    public int readBytes(byte[] buffer, int numBytes) {
+        if (stream == null) {
+            try {
+                stream = new FileInputStream(filename);
+            }
+            catch (FileNotFoundException ex) {
+                return -1;
+            }
+        }
+        int bytesRead = 0;
+        try {
+            bytesRead = stream.read(buffer, 0, numBytes);
+            if (bytesRead == -1) {
+                bytesRead = 0;
+            }
+        }
+        catch (IOException ex) {
+            return -1;
+        }
+
+        return bytesRead;
+    }
+
+    public void close() {
+        try {
+            stream.close();
+        }
+        catch (IOException ex) {
+
+        }
+    }
+}
+
+class OutputFileWriter {
+    private FileOutputStream stream;
+    private String filename;
+
+    public OutputFileWriter(String filename) {
+        this.filename = filename;
+    }
+
+    public boolean writeBytes(byte[] bytes) {
+        if (stream == null) {
+            try {
+                stream = new FileOutputStream(filename);
+            }
+            catch (FileNotFoundException ex) {
+                return false;
+            }
+        }
+
+        try {
+            stream.write(bytes);
+        }
+        catch (IOException ex) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public void close() {
+        try {
+            stream.close();
+        }
+        catch (IOException ex) { }
+    }
 }
 
 public class Substitutor {
@@ -17,31 +91,34 @@ public class Substitutor {
         this.table = table;
     }
 
-    public ErrorCode FileToFile(String inputFilename, String outputFilename) {
+    public ErrorCode FileToFile(String inputFilename, String outputFilename, int bufferSize) {
 
-        FileInputStream inputStream;
-        FileOutputStream outputStream;
-        try {
-            inputStream = new FileInputStream(inputFilename);
-            outputStream = new FileOutputStream(outputFilename);
-        } catch(FileNotFoundException | NullPointerException ex) {
-            // unable to open files
-            return ErrorCode.ERROR_OPENING;
-        }
+        InputFileReader reader = new InputFileReader(inputFilename);
+        OutputFileWriter writer = new OutputFileWriter(outputFilename);
 
-        int inputByteIntRepr;
-        try {
-            while ((inputByteIntRepr = inputStream.read()) != -1) {
-                byte inputByte = (byte) (inputByteIntRepr - 128);
-                byte outputByte = table.Substitute(inputByte);
-                int intRepr = outputByte + 128;
-                outputStream.write(intRepr);
+        byte[] buffer = new byte[bufferSize];
+
+        int bytesRead = reader.readBytes(buffer, bufferSize);
+
+        while (bytesRead > 0) {
+            boolean result = writer.writeBytes(table.Substitute(buffer, bytesRead));
+
+            if (!result) {
+                bytesRead = -1;
+                break;
             }
-        } catch (IOException ex) {
-            // IO exception while processing files
-            return ErrorCode.ERROR_READING;
+
+            bytesRead = reader.readBytes(buffer, bufferSize);
         }
 
-        return ErrorCode.ERROR_OK;
+        reader.close();
+        writer.close();
+
+        if (bytesRead < 0) {
+            return ErrorCode.ERROR_IO;
+        }
+        else {
+            return ErrorCode.ERROR_OK;
+        }
     }
 }

@@ -57,33 +57,13 @@ public class FileParser {
     }
 
     private static Pair<String, String> parseKeyValue(String line, String delimiter) {
+        String[] splitted = line.split(delimiter);
 
-        Pair<Integer, Integer> keyIndices = StringUtils.firstNonSpaceSubstring(line);
-        if (keyIndices.first.equals(keyIndices.second)) {
-            return null; // key not found
-        }
-        String key = line.substring(keyIndices.first, keyIndices.second);
-
-        line = line.substring(keyIndices.second);
-
-        if (!delimiter.isEmpty()) {
-            Pair<Integer, Integer> delimiterIndices = StringUtils.firstNonSpaceSubstring(line);
-
-            String foundDelimiter = line.substring(delimiterIndices.first, delimiterIndices.second);
-            if (!foundDelimiter.equals(delimiter)) {
-                // expected delimiter, but found smth else (or found nothing)
-                return null;
-            }
-            line = line.substring(delimiterIndices.second);
-        }
-
-        Pair<Integer, Integer> valueIndices = StringUtils.firstNonSpaceSubstring(line);
-        if (valueIndices.first.equals(valueIndices.second)) {
-            // value not found
+        if (splitted.length != 2) {
             return null;
         }
-        String value = line.substring(valueIndices.first, valueIndices.second);
-
-        return new Pair<>(key, value);
+        else {
+            return new Pair<>(splitted[0].trim(), splitted[1].trim());
+        }
     }
 }

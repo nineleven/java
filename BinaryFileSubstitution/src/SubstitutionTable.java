@@ -19,6 +19,16 @@ public class SubstitutionTable {
         }
     }
 
+    public byte[] Substitute(byte[] bytes, int numBytes) {
+        byte[] result = new byte[numBytes];
+
+        for (int i = 0; i < numBytes; ++i) {
+            result[i] = Substitute(bytes[i]);
+        }
+
+        return result;
+    }
+
     /*
      reads a table from file, each nonempty line of which is in the following format:
      0x##[any number of space characters]0x## (# stands for any hexadecimal digit)
@@ -26,7 +36,9 @@ public class SubstitutionTable {
      */
     public static SubstitutionTable fromFile(String filename) {
 
-        HashMap<String, String> stringTable = FileParser.readMap(filename, "");
+        HashMap<String, String> stringTable = FileParser.readMap(
+                filename, GlobalConstants.TABLE_DELIMITER
+        );
         if (stringTable == null) {
             return null;
         }
@@ -67,11 +79,7 @@ public class SubstitutionTable {
         byte result;
 
         try {
-            // we don't want to deal with signed bytes in table file,
-            // yet in java byte is signed type, so we have to read
-            // the value into integer first
-            int integerRepresentation = Integer.parseInt(line.substring(2), 16);
-            result = (byte) (integerRepresentation - 128);
+            result = (byte) Integer.parseInt(line.substring(2), 16);
         } catch (NumberFormatException ex) {
             return null;
         }
