@@ -1,5 +1,6 @@
+reader_config = reader_config.txt
+substitutor_config = substitutor_config.txt
+writer_config = writer_config.txt
+
 input_file = input.txt
 output_file = output.txt
-table_file = table.txt
-
-buffer_size = 256

@@ -1,3 +1,5 @@
+import ru.spbstu.pipeline.RetCode;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,19 +21,22 @@ public class SubstitutionTable {
         }
     }
 
-    public byte[] Substitute(byte[] bytes, int numBytes) {
-        byte[] result = new byte[numBytes];
+    public RetCode.AlgorithmCode Substitute(byte[] bytes, byte[] output) {
 
-        for (int i = 0; i < numBytes; ++i) {
-            result[i] = Substitute(bytes[i]);
+        if (bytes == null) {
+            return RetCode.AlgorithmCode.CODE_INVALID_ARGUMENT;
         }
 
-        return result;
+        for (int i = 0; i < bytes.length; ++i) {
+            output[i] = Substitute(bytes[i]);
+        }
+
+        return RetCode.AlgorithmCode.CODE_SUCCESS;
     }
 
     /*
      reads a table from file, each nonempty line of which is in the following format:
-     0x##[any number of space characters]0x## (# stands for any hexadecimal digit)
+     0x## [delimiter] 0x## (# stands for any hexadecimal digit)
      returns null in case of IO exception or if a line of wrong format was found
      */
     public static SubstitutionTable fromFile(String filename) {

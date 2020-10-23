@@ -34,7 +34,6 @@ public class FileParser {
 
             while ((line = reader.readLine()) != null) {
                 if (line.isEmpty()) {
-                    // empty lines are allowed
                     continue;
                 }
 
@@ -57,13 +56,13 @@ public class FileParser {
     }
 
     private static Pair<String, String> parseKeyValue(String line, String delimiter) {
-        String[] splitted = line.split(delimiter);
+        String[] split = line.split(delimiter);
 
-        if (splitted.length != 2) {
+        if (split.length != 2) {
             return null;
         }
         else {
-            return new Pair<>(splitted[0].trim(), splitted[1].trim());
+            return new Pair<>(split[0].trim(), split[1].trim());
         }
     }
 }

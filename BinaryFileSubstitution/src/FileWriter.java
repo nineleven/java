@@ -1,12 +1,27 @@
 import ru.spbstu.pipeline.IExecutable;
 import ru.spbstu.pipeline.IExecutor;
+import ru.spbstu.pipeline.IWriter;
 import ru.spbstu.pipeline.RetCode;
 
-public class Substitutor implements IExecutor {
+import java.io.FileOutputStream;
+import java.io.IOException;
 
-    SubstitutionTable table;
-    IExecutable producer;
-    IExecutable consumer;
+public class FileWriter implements IWriter {
+    private FileOutputStream stream;
+
+    private IExecutable producer;
+    private IExecutable consumer;
+
+    // private int bufferSize;
+
+    @Override
+    public RetCode.SetterCode setOutputStream(FileOutputStream fileOutputStream) {
+        if (fileOutputStream == null) {
+            return RetCode.SetterCode.CODE_INVALID_ARGUMENT;
+        }
+        stream = fileOutputStream;
+        return RetCode.SetterCode.CODE_SUCCESS;
+    }
 
     @Override
     public RetCode.SetterCode setConsumer(IExecutable newConsumer) {
@@ -35,17 +50,15 @@ public class Substitutor implements IExecutor {
         if (cfg == null) {
             return RetCode.ConfigCode.CODE_FAILED_TO_READ;
         }
+        /*
+        Integer bufferSize = cfg.getIntParameter(GlobalConstants.BUFFER_SIZE_FIELD);
 
-        String tableFilename = cfg.getParameter(GlobalConstants.TABLE_FILE_FIELD);
-        if (tableFilename == null) {
-            return RetCode.ConfigCode.CODE_MISSING_PARAMETER;
+        if (bufferSize == null) {
+            return -2;
         }
 
-        table = SubstitutionTable.fromFile(tableFilename);
-        if (table == null) {
-            return RetCode.ConfigCode.CODE_BAD_PARAMETER;
-        }
-
+        this.bufferSize = bufferSize;
+        */
         return RetCode.ConfigCode.CODE_SUCCESS;
     }
 
@@ -56,13 +69,17 @@ public class Substitutor implements IExecutor {
             return RetCode.AlgorithmCode.CODE_INVALID_ARGUMENT;
         }
 
-        byte[] outputBytes = new byte[data.length];
-
-        RetCode.AlgorithmCode retCode = table.Substitute(data, outputBytes);
-        if (retCode != RetCode.AlgorithmCode.CODE_SUCCESS) {
-            return retCode;
+        if (stream == null) {
+            return RetCode.AlgorithmCode.CODE_WRITING_ERROR;
         }
 
-        return consumer.execute(outputBytes);
+        try {
+            stream.write(data);
+        }
+        catch (IOException ex) {
+            return RetCode.AlgorithmCode.CODE_WRITING_ERROR;
+        }
+
+        return RetCode.AlgorithmCode.CODE_SUCCESS;
     }
 }

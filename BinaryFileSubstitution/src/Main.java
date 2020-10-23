@@ -1,56 +1,16 @@
+import ru.spbstu.pipeline.RetCode;
 
 public class Main {
 
-    private static int Substitute(Config cfg) {
-        String inputFilename = cfg.getParameter(GlobalConstants.INPUT_FILE_CONFIG_FIELD);
-        String outputFilename = cfg.getParameter(GlobalConstants.OUTPUT_FILE_CONFIG_FIELD);
-        String tableFilename = cfg.getParameter(GlobalConstants.TABLE_FILE_CONFIG_FIELD);
-        Integer bufferSize = cfg.getIntParameter(GlobalConstants.BUFFER_SIZE_FIELD);
-
-        if (inputFilename == null || outputFilename== null ||
-                tableFilename == null || bufferSize == null) {
-            // bad config
-            return 1;
-        }
-
-        SubstitutionTable table = SubstitutionTable.fromFile(tableFilename);
-
-        if (table == null) {
-            // failed to construct a substitution table
-            return 2;
-        }
-
-        Substitutor substitutor = new Substitutor(table);
-
-        ErrorCode retCode = substitutor.FileToFile(inputFilename, outputFilename, bufferSize.intValue());
-
-        if (retCode != ErrorCode.ERROR_OK) {
-            // IO exception while processing files
-            return 3;
-        }
-
-        return 0;
-    }
-
-    private static void outputExecutionResults(int code) {
-        switch (code) {
-            case 0:
-                System.out.println("Done.");
-                break;
-            case 1:
-                System.out.println("Bad config.");
-                break;
-            case 2:
-                System.out.println("Failed to read a substitution table.");
-                break;
-            case 3:
-                System.out.println("IO exception while processing files.");
-                break;
-            default:
-                System.out.println("Unknown exception.");
-                break;
-        }
-    }
+    /*
+    1. Интерфейс вообще
+        дублирование setConsumer, setProducer
+    2. RetCode
+        один или несколько
+        отдельный для SubstitutionTable
+    3. Какие параметры в конфигах
+    4. PipelineManager->run куча if'ов
+     */
 
     public static void main(String[] Args)  {
 //        if (Args == null || Args.length != 1) {
@@ -60,17 +20,21 @@ public class Main {
 //        String configFileName = Args[0];
         String configFileName = "./config.txt";
 
-        Config cfg = Config.fromFile(configFileName, GlobalConstants.CONFIG_DELIMITER);
-        if (cfg == null) {
-            System.out.println("Failed to read config file " + configFileName + ".");
+        PipelineManager manager = new PipelineManager();
+        RetCode.ConfigCode configRetCode = manager.setConfig(configFileName);
+
+        if (configRetCode != RetCode.ConfigCode.CODE_SUCCESS) {
+            System.out.println("Failed to read config");
             return;
         }
 
-        /*
-        Числовые коды только в классе Main
-         */
-        int code = Substitute(cfg);
+        PipelineManager.RunCode retCode = manager.run();
 
-        outputExecutionResults(code);
+        if (retCode != PipelineManager.RunCode.CODE_SUCCESS) {
+            System.out.println("ERROR " + retCode);
+        }
+        else {
+            System.out.println("DONE");
+        }
     }
 }
