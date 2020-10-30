@@ -1,10 +1,11 @@
 import ru.spbstu.pipeline.IExecutable;
-import ru.spbstu.pipeline.IExecutor;
 import ru.spbstu.pipeline.IReader;
-import ru.spbstu.pipeline.RetCode;
+import ru.spbstu.pipeline.RC;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.logging.Logger;
 
 public class FileReader implements IReader {
 
@@ -13,53 +14,68 @@ public class FileReader implements IReader {
     private IExecutable producer;
     private IExecutable consumer;
 
+    private Logger logger;
+
     private int bufferSize;
 
-    @Override
-    public RetCode.SetterCode setInputStream(FileInputStream fileInputStream) {
-        if (fileInputStream == null) {
-            return RetCode.SetterCode.CODE_INVALID_ARGUMENT;
-        }
-        stream = fileInputStream;
-        return RetCode.SetterCode.CODE_SUCCESS;
+    public FileReader(Logger logger) {
+        this.logger = logger;
     }
 
     @Override
-    public RetCode.SetterCode setConsumer(IExecutable newConsumer) {
+    public RC setInputStream(FileInputStream fileInputStream) {
+        if (fileInputStream == null) {
+            logger.warning("Invalid input stream");
+            return RC.CODE_INVALID_ARGUMENT;
+        }
+        stream = fileInputStream;
+        return RC.CODE_SUCCESS;
+    }
+
+    @Override
+    public RC setConsumer(IExecutable newConsumer) {
         if (newConsumer == null) {
-            return RetCode.SetterCode.CODE_INVALID_ARGUMENT;
+            logger.warning("Invalid consumer");
+            return RC.CODE_INVALID_ARGUMENT;
         }
         consumer = newConsumer;
 
-        return RetCode.SetterCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
     }
 
     @Override
-    public RetCode.SetterCode setProducer(IExecutable newProducer) {
-        if (newProducer == null) {
-            return RetCode.SetterCode.CODE_INVALID_ARGUMENT;
-        }
-
+    public RC setProducer(IExecutable newProducer) {
         producer = newProducer;
 
-        return RetCode.SetterCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
+    }
+
+    private SemanticConfigValidator getSemanticCfgValidator() {
+        HashMap<String, SemanticConfigValidator.ConfigFieldType> svMap;
+        svMap = new HashMap<>();
+        svMap.put(GlobalConstants.BUFFER_SIZE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_INT);
+        return new SemanticConfigValidator(svMap, logger);
     }
 
     @Override
-    public RetCode.ConfigCode setConfig(String configFileName) {
-        Config cfg = Config.fromFile(configFileName, GlobalConstants.CONFIG_DELIMITER);
-        if (cfg == null) {
-            return RetCode.ConfigCode.CODE_FAILED_TO_READ;
+    public RC setConfig(String configFileName) {
+
+        SemanticConfigValidator validator = getSemanticCfgValidator();
+
+        Pair<Config, RC> res = Config.fromFile(configFileName, GlobalConstants.CONFIG_DELIMITER, logger);
+        if (res.first == null) {
+            logger.severe("Failed to read reader config from " + configFileName);
+            return res.second;
         }
 
+        Config cfg = res.first;
+
         Integer bufferSize = cfg.getIntParameter(GlobalConstants.BUFFER_SIZE_FIELD);
-        if (bufferSize == null) {
-            return RetCode.ConfigCode.CODE_MISSING_PARAMETER;
-        }
+        assert bufferSize != null;
 
         this.bufferSize = bufferSize;
 
-        return RetCode.ConfigCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
     }
 
     private int readBytePortion(byte[] buffer, int bufferSize) {
@@ -67,15 +83,17 @@ public class FileReader implements IReader {
         try {
             bytesRead = stream.read(buffer, 0, bufferSize);
         } catch (IOException ex) {
+            logger.severe("IO exception while reading");
             return -1;
         }
         return bytesRead;
     }
 
     @Override
-    public RetCode.AlgorithmCode execute(byte[] data) {
+    public RC execute(byte[] data) {
         if (stream == null) {
-            return RetCode.AlgorithmCode.CODE_INVALID_ARGUMENT;
+            logger.severe("Invalid input stream");
+            return RC.CODE_INVALID_INPUT_STREAM;
         }
 
         byte[] buffer = new byte[bufferSize];
@@ -91,13 +109,14 @@ public class FileReader implements IReader {
             byte[] output = new byte[bytesRead];
             System.arraycopy(buffer, 0, output, 0, bytesRead);
 
-            RetCode.AlgorithmCode retCode = consumer.execute(output);
-            if (retCode != RetCode.AlgorithmCode.CODE_SUCCESS) {
+            RC retCode = consumer.execute(output);
+            if (retCode != RC.CODE_SUCCESS) {
+                logger.severe("Reader consumer execution error");
                 return retCode;
             }
         }
 
-        return RetCode.AlgorithmCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
     }
 }
 

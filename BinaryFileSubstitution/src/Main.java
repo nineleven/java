@@ -1,40 +1,36 @@
-import ru.spbstu.pipeline.RetCode;
+import ru.spbstu.pipeline.RC;
+
+import java.util.logging.Logger;
 
 public class Main {
 
     /*
-    1. Интерфейс вообще
-        дублирование setConsumer, setProducer
-    2. RetCode
-        один или несколько
-        отдельный для SubstitutionTable
-    3. Какие параметры в конфигах
-    4. PipelineManager->run куча if'ов
+    1. Logger в конструкторе Executable
+
      */
 
     public static void main(String[] Args)  {
-//        if (Args == null || Args.length != 1) {
-//            System.out.println("Expected one command-line argument.");
-//            return;
-//        }
-//        String configFileName = Args[0];
-        String configFileName = "./config.txt";
+        if (Args == null || Args.length != 1) {
+            System.out.println("Expected one command-line argument");
+            return;
+        }
+        String configFileName = Args[0];
 
-        PipelineManager manager = new PipelineManager();
-        RetCode.ConfigCode configRetCode = manager.setConfig(configFileName);
+        Logger logger = Logger.getLogger("Logger");
 
-        if (configRetCode != RetCode.ConfigCode.CODE_SUCCESS) {
-            System.out.println("Failed to read config");
+        PipelineManager manager = PipelineManager.createInstance(configFileName, logger);
+        if (manager == null) {
+            logger.severe("Failed to create a pipeline manager");
             return;
         }
 
-        PipelineManager.RunCode retCode = manager.run();
+        RC retCode = manager.run();
 
-        if (retCode != PipelineManager.RunCode.CODE_SUCCESS) {
-            System.out.println("ERROR " + retCode);
+        if (retCode != RC.CODE_SUCCESS) {
+            logger.severe("Pipeline execution failed");
+            return;
         }
-        else {
-            System.out.println("DONE");
-        }
+
+        System.out.println("DONE");
     }
 }

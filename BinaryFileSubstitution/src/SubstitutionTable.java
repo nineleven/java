@@ -1,13 +1,16 @@
-import ru.spbstu.pipeline.RetCode;
+import ru.spbstu.pipeline.RC;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Logger;
 
 public class SubstitutionTable {
 
-    HashMap<Byte, Byte> table;
+    private HashMap<Byte, Byte> table;
 
-    private SubstitutionTable(HashMap<Byte, Byte> table) {
+    private Logger logger;
+
+    private SubstitutionTable(HashMap<Byte, Byte> table, Logger logger) {
         this.table = table;
     }
 
@@ -21,39 +24,66 @@ public class SubstitutionTable {
         }
     }
 
-    public RetCode.AlgorithmCode Substitute(byte[] bytes, byte[] output) {
+    public RC Substitute(byte[] bytes, byte[] output) {
 
         if (bytes == null) {
-            return RetCode.AlgorithmCode.CODE_INVALID_ARGUMENT;
+            logger.warning("Invalid substitution input");
+            return RC.CODE_INVALID_ARGUMENT;
         }
 
         for (int i = 0; i < bytes.length; ++i) {
             output[i] = Substitute(bytes[i]);
         }
 
-        return RetCode.AlgorithmCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
     }
 
-    /*
-     reads a table from file, each nonempty line of which is in the following format:
-     0x## [delimiter] 0x## (# stands for any hexadecimal digit)
-     returns null in case of IO exception or if a line of wrong format was found
-     */
-    public static SubstitutionTable fromFile(String filename) {
+    private static boolean isValidTable(HashMap<Byte, Byte> map) {
+        boolean[] present = new boolean[256];
 
-        HashMap<String, String> stringTable = FileParser.readMap(
+        for (int i = 0; i < present.length; ++i) {
+            present[i] = false;
+        }
+
+        for(Map.Entry<Byte, Byte> entry: map.entrySet()) {
+            if (!map.containsKey(entry.getValue())) {
+                return false;
+            }
+            if (present[128 + entry.getValue()]) {
+                return false;
+            }
+            present[128 + entry.getValue()] = true;
+        }
+
+        return true;
+    }
+
+    public static Pair<SubstitutionTable, RC> fromFile(String filename, Logger logger) {
+
+        Pair<HashMap<String, String>, RC> res = FileParser.readMap(
                 filename, GlobalConstants.TABLE_DELIMITER
         );
-        if (stringTable == null) {
-            return null;
+        if (res.first == null) {
+            logger.severe("Failed to read a table from " + filename);
+            return new Pair(null, res.second);
         }
+
+        HashMap<String, String> stringTable = res.first;
 
         HashMap<Byte, Byte> byteTable = StringTableToByte(stringTable);
         if (byteTable == null) {
-            return null;
+            logger.severe("Failed to convert table to byte");
+            return new Pair(null, RC.CODE_CONFIG_SEMANTIC_ERROR);
         }
 
-        return new SubstitutionTable(byteTable);
+        if (!isValidTable(byteTable)) {
+            logger.severe("Invalid mapping");
+            return new Pair(null, RC.CODE_CONFIG_SEMANTIC_ERROR);
+        }
+
+        SubstitutionTable table = new SubstitutionTable(byteTable, logger);
+
+        return new Pair(table, RC.CODE_SUCCESS);
     }
 
     private static HashMap<Byte, Byte> StringTableToByte(HashMap<String, String> stringTable) {

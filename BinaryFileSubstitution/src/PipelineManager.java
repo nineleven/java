@@ -1,20 +1,14 @@
 import ru.spbstu.pipeline.IConfigurable;
-import ru.spbstu.pipeline.RetCode;
+import ru.spbstu.pipeline.RC;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.logging.Logger;
 
 public class PipelineManager implements IConfigurable {
-
-    public enum RunCode {
-        CODE_SUCCESS,
-        CODE_CONFIG,
-        CODE_STREAM,
-        CODE_BUILDING,
-        CODE_EXECUTION
-    }
 
     private String inputFileName;
     private String outputFileName;
@@ -22,50 +16,60 @@ public class PipelineManager implements IConfigurable {
     private String outputConfigFileName;
     private String substitutorConfigFileName;
 
-    public RetCode.ConfigCode setConfig(String s) {
-        Config cfg = Config.fromFile(s, GlobalConstants.CONFIG_DELIMITER);
-        if (cfg == null) {
-            return RetCode.ConfigCode.CODE_FAILED_TO_READ;
-        }
+    private Logger logger;
 
-        String inputFileName = cfg.getParameter(GlobalConstants.INPUT_FILE_FIELD);
-        String outputFileName = cfg.getParameter(GlobalConstants.OUTPUT_FILE_FIELD);
-        String inputConfigFileName = cfg.getParameter(GlobalConstants.INPUT_CONFIG_FILE_FIELD);
-        String outputConfigFileName = cfg.getParameter(GlobalConstants.OUTPUT_CONFIG_FILE_FIELD);
-        String substitutorConfigFileName = cfg.getParameter(GlobalConstants.SUBSTITUTOR_CONFIG_FILE_FIELD);
-
-        if (inputFileName == null || outputFileName == null ||
-                inputConfigFileName == null || outputConfigFileName == null) {
-            return RetCode.ConfigCode.CODE_MISSING_PARAMETER;
-        }
-
-        this.inputFileName = inputFileName;
-        this.outputFileName = outputFileName;
-        this.inputConfigFileName = inputConfigFileName;
-        this.outputConfigFileName = outputConfigFileName;
-        this.substitutorConfigFileName = substitutorConfigFileName;
-
-        return RetCode.ConfigCode.CODE_SUCCESS;
+    private PipelineManager(Logger logger) {
+        this.logger = logger;
     }
 
-    public RunCode run() {
+    public static PipelineManager createInstance(String configFileName, Logger logger) {
+        PipelineManager instance = new PipelineManager(logger);
+        RC retCode = instance.setConfig(configFileName);
+        if (retCode != RC.CODE_SUCCESS) {
+            return null;
+        }
+        return instance;
+    }
 
-        FileReader reader = new FileReader();
-        RetCode.ConfigCode configRetCode = reader.setConfig(inputConfigFileName);
-        if (configRetCode != RetCode.ConfigCode.CODE_SUCCESS) {
-            return RunCode.CODE_CONFIG;
+    public RC setConfig(String configFileName) {
+        Pair<Config, RC> res = Config.fromFile(configFileName, GlobalConstants.CONFIG_DELIMITER, logger);
+        if (res.first == null) {
+            return res.second;
         }
 
-        FileWriter writer = new FileWriter();
-        configRetCode = writer.setConfig(outputConfigFileName);
-        if (configRetCode != RetCode.ConfigCode.CODE_SUCCESS) {
-            return RunCode.CODE_CONFIG;
+        Config cfg = res.first;
+
+        SemanticConfigValidator validator = getSemanticConfigValidator();
+        if (!validator.validate(cfg)) {
+            return RC.CODE_CONFIG_SEMANTIC_ERROR;
         }
 
-        Substitutor substitutor = new Substitutor();
-        configRetCode = substitutor.setConfig(substitutorConfigFileName);
-        if (configRetCode != RetCode.ConfigCode.CODE_SUCCESS) {
-            return RunCode.CODE_CONFIG;
+        setFieldsFromConfig(cfg);
+
+        return RC.CODE_SUCCESS;
+    }
+
+    public RC run() {
+
+        FileReader reader = new FileReader(logger);
+        RC retCode = reader.setConfig(inputConfigFileName);
+        if (retCode != RC.CODE_SUCCESS) {
+            logger.severe("Failed to construct reader config");
+            return retCode;
+        }
+
+        FileWriter writer = new FileWriter(logger);
+        retCode = writer.setConfig(outputConfigFileName);
+        if (retCode != RC.CODE_SUCCESS) {
+            logger.severe("Failed to construct writer config");
+            return retCode;
+        }
+
+        Substitutor substitutor = new Substitutor(logger);
+        retCode = substitutor.setConfig(substitutorConfigFileName);
+        if (retCode != RC.CODE_SUCCESS) {
+            logger.severe("Failed to construct substitutor config");
+            return retCode;
         }
 
         FileInputStream inputStream;
@@ -74,65 +78,79 @@ public class PipelineManager implements IConfigurable {
             inputStream = new FileInputStream(inputFileName);
         }
         catch (FileNotFoundException ex) {
-            return RunCode.CODE_STREAM;
+            logger.severe("Failed to open file " + inputFileName);
+            return RC.CODE_INVALID_INPUT_STREAM;
         }
         try {
             outputStream = new FileOutputStream(outputFileName);
         }
         catch (FileNotFoundException ex) {
+            logger.severe("Failed to open file " + outputFileName);
             try {
                 inputStream.close();
             } catch(IOException ex1) {}
-            return RunCode.CODE_STREAM;
+            return RC.CODE_INVALID_OUTPUT_STREAM;
         }
 
-        /*
-        Убрать ?
-         */
-        RetCode.SetterCode setterRetCode = reader.setConsumer(substitutor);
-        if (setterRetCode != RetCode.SetterCode.CODE_SUCCESS) {
-            return RunCode.CODE_BUILDING;
-        }
-        setterRetCode = reader.setInputStream(inputStream);
-        if (setterRetCode != RetCode.SetterCode.CODE_SUCCESS) {
-            return RunCode.CODE_BUILDING;
-        }
+        reader.setConsumer(substitutor);
+        reader.setInputStream(inputStream);
+        substitutor.setProducer(reader);
+        substitutor.setConsumer(writer);
+        writer.setProducer(substitutor);
+        writer.setOutputStream(outputStream);
 
-        setterRetCode = substitutor.setProducer(reader);
-        if (setterRetCode != RetCode.SetterCode.CODE_SUCCESS) {
-            return RunCode.CODE_BUILDING;
-        }
-        setterRetCode = substitutor.setConsumer(writer);
-        if (setterRetCode != RetCode.SetterCode.CODE_SUCCESS) {
-            return RunCode.CODE_BUILDING;
-        }
-
-        setterRetCode = writer.setProducer(substitutor);
-        if (setterRetCode != RetCode.SetterCode.CODE_SUCCESS) {
-            return RunCode.CODE_BUILDING;
-        }
-        setterRetCode = writer.setOutputStream(outputStream);
-        if (setterRetCode != RetCode.SetterCode.CODE_SUCCESS) {
-            return RunCode.CODE_BUILDING;
-        }
-
-        RetCode.AlgorithmCode algRetCode = reader.execute(null);
+        retCode = reader.execute(null);
 
         try {
             inputStream.close();
         }
-        catch (IOException ex) {}
+        catch (IOException ex) {
+            logger.warning("Failed to close input stream");
+        }
 
         try {
             outputStream.close();
         }
-        catch (IOException ex) {}
+        catch (IOException ex) {
+            logger.warning("Failed to close output stream");
+        }
 
-        if (algRetCode != RetCode.AlgorithmCode.CODE_SUCCESS) {
-            return RunCode.CODE_EXECUTION;
+        if (retCode != RC.CODE_SUCCESS) {
+            logger.severe("Failed to execute pipeline");
+            return retCode;
         }
-        else {
-            return RunCode.CODE_SUCCESS;
-        }
+
+        return RC.CODE_SUCCESS;
+    }
+
+    private SemanticConfigValidator getSemanticConfigValidator() {
+        HashMap<String, SemanticConfigValidator.ConfigFieldType> svMap;
+        svMap = new HashMap<>();
+        svMap.put(GlobalConstants.INPUT_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_EXISTING_FILE);
+        svMap.put(GlobalConstants.INPUT_CONFIG_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_EXISTING_FILE);
+        svMap.put(GlobalConstants.OUTPUT_CONFIG_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_EXISTING_FILE);
+        svMap.put(GlobalConstants.SUBSTITUTOR_CONFIG_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_EXISTING_FILE);
+        return new SemanticConfigValidator(svMap, logger);
+    }
+
+    private void setFieldsFromConfig(Config cfg) {
+        String inputFileName = cfg.getParameter(GlobalConstants.INPUT_FILE_FIELD);
+        String outputFileName = cfg.getParameter(GlobalConstants.OUTPUT_FILE_FIELD);
+        String inputConfigFileName = cfg.getParameter(GlobalConstants.INPUT_CONFIG_FILE_FIELD);
+        String outputConfigFileName = cfg.getParameter(GlobalConstants.OUTPUT_CONFIG_FILE_FIELD);
+        String substitutorConfigFileName = cfg.getParameter(GlobalConstants.SUBSTITUTOR_CONFIG_FILE_FIELD);
+
+        /*
+        We know that these fields should be non-null,
+        since semantic validator ensures that
+        */
+        assert (inputFileName != null && outputFileName != null &&
+                inputConfigFileName != null && outputConfigFileName != null);
+
+        this.inputFileName = inputFileName;
+        this.outputFileName = outputFileName;
+        this.inputConfigFileName = inputConfigFileName;
+        this.outputConfigFileName = outputConfigFileName;
+        this.substitutorConfigFileName = substitutorConfigFileName;
     }
 }

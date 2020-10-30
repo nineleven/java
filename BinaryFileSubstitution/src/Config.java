@@ -1,11 +1,18 @@
+import ru.spbstu.pipeline.RC;
+
 import java.util.HashMap;
+import java.util.logging.Logger;
 
 public class Config {
 
     private HashMap<String, String> fields;
 
-    private Config(HashMap<String, String> fields) {
+    private Logger logger;
+
+    private Config(HashMap<String, String> fields, Logger logger)
+    {
         this.fields = fields;
+        this.logger = logger;
     }
 
     public String getParameter(String key) {
@@ -14,6 +21,7 @@ public class Config {
             value = fields.get(key);
         }
         catch (ClassCastException | NullPointerException ex) {
+            logger.warning("Failed to parse a config parameter");
             value = null;
         }
         return value;
@@ -22,6 +30,7 @@ public class Config {
     public Integer getIntParameter(String key) {
         String stringParameter = getParameter(key);
         if (stringParameter == null) {
+            logger.warning("Failed to parse a config parameter " + key);
             return null;
         }
         Integer value;
@@ -30,26 +39,21 @@ public class Config {
         }
         catch (NumberFormatException ex) {
             value = null;
+            logger.warning("Failed to parse a config parameter " + key);
         }
         return value;
     }
 
-    /*
-     reads a config from file, each nonempty line of which is in the following format:
-     key[any number of space characters]delimiter[any number of space characters]value
-     returns null in case of IO exception or if a line of wrong format was found
-     */
-    public static Config fromFile(String filename, String delimiter) {
-        Config config;
+    public static Pair<Config, RC> fromFile(String filename, String delimiter, Logger logger) {
+        Pair<HashMap<String, String>, RC> res = FileParser.readMap(filename, delimiter);
 
-        HashMap<String, String> fields = FileParser.readMap(filename, delimiter);
-
-        if (fields == null) {
-            config = null;
-        } else {
-            config = new Config(fields);
+        if (res.first == null) {
+            logger.severe("Failed to read a map from " + filename);
+            return new Pair(null, res.second);
         }
 
-        return config;
+        Config cfg = new Config(res.first, logger);
+
+        return new Pair(cfg, RC.CODE_SUCCESS);
     }
 }

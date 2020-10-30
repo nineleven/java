@@ -1,3 +1,5 @@
+import ru.spbstu.pipeline.RC;
+
 import java.io.*;
 import java.util.HashMap;
 
@@ -18,12 +20,12 @@ public class FileParser {
      key[any number of space characters]delimiter[any number of space characters]value
      returns null in case of IO exception or if a line of wrong format was found
      */
-    public static HashMap<String, String> readMap(String filename, String delimiter) {
+    public static Pair<HashMap<String, String>, RC> readMap(String filename, String delimiter) {
         FileInputStream inputStream;
         try {
             inputStream = new FileInputStream(filename);
         } catch (FileNotFoundException ex) {
-            return null;
+            return new Pair(null, RC.CODE_INVALID_INPUT_STREAM);
         }
 
         HashMap<String, String> map = new HashMap<>();
@@ -39,9 +41,11 @@ public class FileParser {
 
                 Pair<String, String> keyValPair = parseKeyValue(line, delimiter);
                 if (keyValPair == null) {
-                    // failed to extract key-value pair from this line
-                    // it might be better to return null here, might not
-                    continue;
+                    return new Pair(null, RC.CODE_CONFIG_GRAMMAR_ERROR);
+                }
+
+                if (map.containsKey(keyValPair.first)) {
+                    return new Pair(null, RC.CODE_CONFIG_GRAMMAR_ERROR); // ambigious value for the key
                 }
                 map.put(keyValPair.first, keyValPair.second);
             }
@@ -52,7 +56,7 @@ public class FileParser {
             closeStream(reader);
         }
 
-        return map;
+        return new Pair(map, RC.CODE_SUCCESS);
     }
 
     private static Pair<String, String> parseKeyValue(String line, String delimiter) {

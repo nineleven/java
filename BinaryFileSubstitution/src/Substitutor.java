@@ -1,6 +1,9 @@
 import ru.spbstu.pipeline.IExecutable;
 import ru.spbstu.pipeline.IExecutor;
-import ru.spbstu.pipeline.RetCode;
+import ru.spbstu.pipeline.RC;
+
+import java.util.HashMap;
+import java.util.logging.Logger;
 
 public class Substitutor implements IExecutor {
 
@@ -8,61 +11,88 @@ public class Substitutor implements IExecutor {
     IExecutable producer;
     IExecutable consumer;
 
-    @Override
-    public RetCode.SetterCode setConsumer(IExecutable newConsumer) {
-        if (newConsumer == null) {
-            return RetCode.SetterCode.CODE_INVALID_ARGUMENT;
-        }
-        consumer = newConsumer;
+    private Logger logger;
 
-        return RetCode.SetterCode.CODE_SUCCESS;
+    public Substitutor(Logger logger) {
+        this.logger = logger;
     }
 
     @Override
-    public RetCode.SetterCode setProducer(IExecutable newProducer) {
+    public RC setConsumer(IExecutable newConsumer) {
+        if (newConsumer == null) {
+            logger.warning("Invalid consumer passed to substitutor");
+            return RC.CODE_INVALID_ARGUMENT;
+        }
+        consumer = newConsumer;
+
+        return RC.CODE_SUCCESS;
+    }
+
+    @Override
+    public RC setProducer(IExecutable newProducer) {
         if (newProducer == null) {
-            return RetCode.SetterCode.CODE_INVALID_ARGUMENT;
+            logger.warning("Invalid producer passed to substitutor");
+            return RC.CODE_INVALID_ARGUMENT;
         }
 
         producer = newProducer;
 
-        return RetCode.SetterCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
+    }
+
+    private SemanticConfigValidator getSemanticCfgValidator() {
+        HashMap<String, SemanticConfigValidator.ConfigFieldType> svMap;
+        svMap = new HashMap<>();
+        svMap.put(GlobalConstants.TABLE_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_EXISTING_FILE);
+        return new SemanticConfigValidator(svMap, logger);
     }
 
     @Override
-    public RetCode.ConfigCode setConfig(String s) {
-        Config cfg = Config.fromFile(s, GlobalConstants.CONFIG_DELIMITER);
-        if (cfg == null) {
-            return RetCode.ConfigCode.CODE_FAILED_TO_READ;
+    public RC setConfig(String configFileName) {
+        Pair<Config, RC> res = Config.fromFile(configFileName, GlobalConstants.CONFIG_DELIMITER, logger);
+        if (res.first == null) {
+            logger.severe("Failed to read substitutor config");
+            return res.second;
         }
+
+        Config cfg = res.first;
 
         String tableFilename = cfg.getParameter(GlobalConstants.TABLE_FILE_FIELD);
-        if (tableFilename == null) {
-            return RetCode.ConfigCode.CODE_MISSING_PARAMETER;
+        assert  tableFilename != null;
+
+        Pair<SubstitutionTable, RC> tableRes = SubstitutionTable.fromFile(tableFilename, logger);
+        if (tableRes.first == null) {
+            logger.severe("Failed to construct a substitution table from " + tableFilename);
+            return tableRes.second;
         }
 
-        table = SubstitutionTable.fromFile(tableFilename);
-        if (table == null) {
-            return RetCode.ConfigCode.CODE_BAD_PARAMETER;
-        }
+        this.table = tableRes.first;
 
-        return RetCode.ConfigCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
     }
 
     @Override
-    public RetCode.AlgorithmCode execute(byte[] data) {
+    public RC execute(byte[] data) {
 
         if (data == null) {
-            return RetCode.AlgorithmCode.CODE_INVALID_ARGUMENT;
+            logger.severe("Invalid substitutor input");
+            return RC.CODE_INVALID_ARGUMENT;
         }
 
         byte[] outputBytes = new byte[data.length];
 
-        RetCode.AlgorithmCode retCode = table.Substitute(data, outputBytes);
-        if (retCode != RetCode.AlgorithmCode.CODE_SUCCESS) {
+        RC retCode = table.Substitute(data, outputBytes);
+        if (retCode != RC.CODE_SUCCESS) {
+            logger.severe("Substitution error");
             return retCode;
         }
 
-        return consumer.execute(outputBytes);
+        retCode = consumer.execute(outputBytes);
+
+        if(retCode != RC.CODE_SUCCESS) {
+            logger.severe("Substitutor consumer execution error");
+        }
+
+        return retCode;
     }
 }

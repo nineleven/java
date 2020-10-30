@@ -1,10 +1,11 @@
 import ru.spbstu.pipeline.IExecutable;
-import ru.spbstu.pipeline.IExecutor;
 import ru.spbstu.pipeline.IWriter;
-import ru.spbstu.pipeline.RetCode;
+import ru.spbstu.pipeline.RC;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.logging.Logger;
 
 public class FileWriter implements IWriter {
     private FileOutputStream stream;
@@ -12,74 +13,89 @@ public class FileWriter implements IWriter {
     private IExecutable producer;
     private IExecutable consumer;
 
-    // private int bufferSize;
+    private Logger logger;
+
+    private int bufferSize;
+
+    public FileWriter(Logger logger) {
+        this.logger = logger;
+    }
 
     @Override
-    public RetCode.SetterCode setOutputStream(FileOutputStream fileOutputStream) {
+    public RC setOutputStream(FileOutputStream fileOutputStream) {
         if (fileOutputStream == null) {
-            return RetCode.SetterCode.CODE_INVALID_ARGUMENT;
+            logger.warning("An invalid output stream passed to writer");
+            return RC.CODE_INVALID_ARGUMENT;
         }
         stream = fileOutputStream;
-        return RetCode.SetterCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
     }
 
     @Override
-    public RetCode.SetterCode setConsumer(IExecutable newConsumer) {
-        if (newConsumer == null) {
-            return RetCode.SetterCode.CODE_INVALID_ARGUMENT;
-        }
+    public RC setConsumer(IExecutable newConsumer) {
         consumer = newConsumer;
 
-        return RetCode.SetterCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
     }
 
     @Override
-    public RetCode.SetterCode setProducer(IExecutable newProducer) {
+    public RC setProducer(IExecutable newProducer) {
         if (newProducer == null) {
-            return RetCode.SetterCode.CODE_INVALID_ARGUMENT;
+            logger.warning("Invalid producer passed to writer");
+            return RC.CODE_INVALID_ARGUMENT;
         }
 
         producer = newProducer;
 
-        return RetCode.SetterCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
+    }
+
+    private SemanticConfigValidator getSemanticCfgValidator() {
+        HashMap<String, SemanticConfigValidator.ConfigFieldType> svMap;
+        svMap = new HashMap<>();
+        svMap.put(GlobalConstants.BUFFER_SIZE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_INT);
+        return new SemanticConfigValidator(svMap, logger);
     }
 
     @Override
-    public RetCode.ConfigCode setConfig(String s) {
-        Config cfg = Config.fromFile(s, GlobalConstants.CONFIG_DELIMITER);
-        if (cfg == null) {
-            return RetCode.ConfigCode.CODE_FAILED_TO_READ;
+    public RC setConfig(String configFileName) {
+        Pair<Config, RC> res = Config.fromFile(configFileName, GlobalConstants.CONFIG_DELIMITER, logger);
+        if (res.first == null) {
+            logger.warning("Failed to read writer config from " + configFileName);
+            return res.second;
         }
-        /*
-        Integer bufferSize = cfg.getIntParameter(GlobalConstants.BUFFER_SIZE_FIELD);
 
-        if (bufferSize == null) {
-            return -2;
-        }
+        Config cfg = res.first;
+
+        Integer bufferSize = cfg.getIntParameter(GlobalConstants.BUFFER_SIZE_FIELD);
+        assert bufferSize != null;
 
         this.bufferSize = bufferSize;
-        */
-        return RetCode.ConfigCode.CODE_SUCCESS;
+
+        return RC.CODE_SUCCESS;
     }
 
     @Override
-    public RetCode.AlgorithmCode execute(byte[] data) {
+    public RC execute(byte[] data) {
 
         if (data == null) {
-            return RetCode.AlgorithmCode.CODE_INVALID_ARGUMENT;
+            logger.severe("Invalid writer input");
+            return RC.CODE_INVALID_ARGUMENT;
         }
 
         if (stream == null) {
-            return RetCode.AlgorithmCode.CODE_WRITING_ERROR;
+            logger.severe("Invalid output stream");
+            return RC.CODE_INVALID_OUTPUT_STREAM;
         }
 
         try {
             stream.write(data);
         }
         catch (IOException ex) {
-            return RetCode.AlgorithmCode.CODE_WRITING_ERROR;
+            logger.severe("IO exception while writing");
+            return RC.CODE_FAILED_TO_WRITE;
         }
 
-        return RetCode.AlgorithmCode.CODE_SUCCESS;
+        return RC.CODE_SUCCESS;
     }
 }
