@@ -53,7 +53,7 @@ public class FileWriter implements IWriter {
     private SemanticConfigValidator getSemanticCfgValidator() {
         HashMap<String, SemanticConfigValidator.ConfigFieldType> svMap;
         svMap = new HashMap<>();
-        svMap.put(GlobalConstants.BUFFER_SIZE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_INT);
+        svMap.put(GlobalConstants.BUFFER_SIZE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_POSITIVE_INT);
         return new SemanticConfigValidator(svMap, logger);
     }
 
@@ -97,7 +97,11 @@ public class FileWriter implements IWriter {
         }
 
         try {
-            stream.write(data);
+            for(int i = 0; i < data.length - bufferSize; i+=bufferSize) {
+                stream.write(data, i, bufferSize);
+            }
+            int lastChunkSize = data.length % bufferSize == 0 ? bufferSize : data.length % bufferSize;
+            stream.write(data, data.length - lastChunkSize, lastChunkSize);
         }
         catch (IOException ex) {
             logger.severe("IO exception while writing");

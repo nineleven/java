@@ -15,7 +15,7 @@ public class SemanticConfigValidator {
     public enum ConfigFieldType {
         FT_IS_PRESENT,
         FT_EXISTING_FILE,
-        FT_INT,
+        FT_POSITIVE_INT,
         FT_CLASS_NAME,
         FT_PIPELINE
     }
@@ -26,12 +26,15 @@ public class SemanticConfigValidator {
         this.logger = logger;
     }
 
-    private boolean validateInt(String value) {
+    private boolean validatePositiveInt(String value) {
         if (value == null) {
             return false;
         }
         try {
-            Integer.parseInt(value);
+            int i = Integer.parseInt(value);
+            if (i <= 0) {
+                return false;
+            }
         }
         catch (NumberFormatException ex) {
             return false;
@@ -99,8 +102,8 @@ public class SemanticConfigValidator {
             case FT_EXISTING_FILE:
                 isValid = validateExistingFile(value);
                 break;
-            case FT_INT:
-                isValid = validateInt(value);
+            case FT_POSITIVE_INT:
+                isValid = validatePositiveInt(value);
                 break;
             case FT_CLASS_NAME:
                 isValid = validateClassName(value);

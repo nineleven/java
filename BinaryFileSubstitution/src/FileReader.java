@@ -53,7 +53,7 @@ public class FileReader implements IReader {
     private SemanticConfigValidator getSemanticCfgValidator() {
         HashMap<String, SemanticConfigValidator.ConfigFieldType> svMap;
         svMap = new HashMap<>();
-        svMap.put(GlobalConstants.BUFFER_SIZE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_INT);
+        svMap.put(GlobalConstants.BUFFER_SIZE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_POSITIVE_INT);
         return new SemanticConfigValidator(svMap, logger);
     }
 
