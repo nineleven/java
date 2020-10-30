@@ -1,6 +1,10 @@
-reader_config = reader_config.txt
-substitutor_config = substitutor_config.txt
-writer_config = writer_config.txt
-
 input_file = input.txt
 output_file = output.txt
+
+reader_class = FileReader
+writer_class = FileWriter
+executor_class = Substitutor
+
+reader_config = reader_config.txt
+writer_config = writer_config.txt
+executor_config = substitutor_config.txt

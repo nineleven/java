@@ -6,7 +6,8 @@ public class Main {
 
     /*
     1. Logger в конструкторе Executable
-
+    2. GlobalConstants?
+    3. PipelineManger -> SemanticConfigValidator new ...(..., logger) норм??
      */
 
     public static void main(String[] Args)  {

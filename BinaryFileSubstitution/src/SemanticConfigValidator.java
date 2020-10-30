@@ -1,3 +1,5 @@
+import ru.spbstu.pipeline.IPipelineStep;
+
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,6 +15,7 @@ public class SemanticConfigValidator {
         FT_IS_PRESENT,
         FT_EXISTING_FILE,
         FT_INT,
+        FT_CLASS_NAME
     }
 
     public SemanticConfigValidator(HashMap<String, ConfigFieldType> fieldTypes,
@@ -45,7 +48,16 @@ public class SemanticConfigValidator {
         return true;
     }
 
-    private boolean validateFieldType(String key, String value, ConfigFieldType expectedType) {
+    private boolean validateClassName(String value) {
+        try {
+             Class clazz = Class.forName(value);
+             return IPipelineStep.class.isAssignableFrom(clazz);
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
+
+    private boolean validateFieldType(String value, ConfigFieldType expectedType) {
         boolean isValid = true;
 
         switch (expectedType) {
@@ -58,8 +70,11 @@ public class SemanticConfigValidator {
             case FT_INT:
                 isValid = validateInt(value);
                 break;
+            case FT_CLASS_NAME:
+                isValid = validateClassName(value);
+                break;
             default:
-                // log warning
+                logger.warning("Unknown config field type:" + expectedType);
                 break;
         }
 
@@ -73,10 +88,10 @@ public class SemanticConfigValidator {
             if (value == null) {
                 // log warning
                 logger.warning("Config missing field " + entry.getKey());
-                continue;
+                return false;
             }
 
-            if (!validateFieldType(entry.getKey(), value, entry.getValue())) {
+            if (!validateFieldType(value, entry.getValue())) {
                 logger.warning("Invalid field value " + value);
                 return false;
             }

@@ -45,7 +45,7 @@ public class Config {
     }
 
     public static Pair<Config, RC> fromFile(String filename, String delimiter, Logger logger) {
-        Pair<HashMap<String, String>, RC> res = FileParser.readMap(filename, delimiter);
+        Pair<HashMap<String, String>, RC> res = FileParser.readMap(filename, delimiter, logger);
 
         if (res.first == null) {
             logger.severe("Failed to read a map from " + filename);

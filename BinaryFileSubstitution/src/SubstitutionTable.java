@@ -61,7 +61,7 @@ public class SubstitutionTable {
     public static Pair<SubstitutionTable, RC> fromFile(String filename, Logger logger) {
 
         Pair<HashMap<String, String>, RC> res = FileParser.readMap(
-                filename, GlobalConstants.TABLE_DELIMITER
+                filename, GlobalConstants.TABLE_DELIMITER, logger
         );
         if (res.first == null) {
             logger.severe("Failed to read a table from " + filename);
