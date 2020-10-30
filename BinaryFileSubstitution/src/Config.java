@@ -7,7 +7,7 @@ public class Config {
 
     private HashMap<String, String> fields;
 
-    private Logger logger;
+    private final Logger logger;
 
     private Config(HashMap<String, String> fields, Logger logger)
     {
@@ -49,11 +49,11 @@ public class Config {
 
         if (res.first == null) {
             logger.severe("Failed to read a map from " + filename);
-            return new Pair(null, res.second);
+            return new Pair<>(null, res.second);
         }
 
         Config cfg = new Config(res.first, logger);
 
-        return new Pair(cfg, RC.CODE_SUCCESS);
+        return new Pair<>(cfg, RC.CODE_SUCCESS);
     }
 }

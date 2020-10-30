@@ -11,7 +11,7 @@ public class Substitutor implements IExecutor {
     IExecutable producer;
     IExecutable consumer;
 
-    private Logger logger;
+    private final Logger logger;
 
     public Substitutor(Logger logger) {
         this.logger = logger;
@@ -56,6 +56,10 @@ public class Substitutor implements IExecutor {
         }
 
         Config cfg = res.first;
+
+        if (!getSemanticCfgValidator().validate(cfg)) {
+            return RC.CODE_CONFIG_SEMANTIC_ERROR;
+        }
 
         String tableFilename = cfg.getParameter(GlobalConstants.TABLE_FILE_FIELD);
         assert  tableFilename != null;

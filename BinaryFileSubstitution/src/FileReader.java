@@ -14,7 +14,7 @@ public class FileReader implements IReader {
     private IExecutable producer;
     private IExecutable consumer;
 
-    private Logger logger;
+    private final Logger logger;
 
     private int bufferSize;
 
@@ -60,8 +60,6 @@ public class FileReader implements IReader {
     @Override
     public RC setConfig(String configFileName) {
 
-        SemanticConfigValidator validator = getSemanticCfgValidator();
-
         Pair<Config, RC> res = Config.fromFile(configFileName, GlobalConstants.CONFIG_DELIMITER, logger);
         if (res.first == null) {
             logger.severe("Failed to read reader config from " + configFileName);
@@ -69,6 +67,10 @@ public class FileReader implements IReader {
         }
 
         Config cfg = res.first;
+
+        if (!getSemanticCfgValidator().validate(cfg)) {
+            return RC.CODE_CONFIG_SEMANTIC_ERROR;
+        }
 
         Integer bufferSize = cfg.getIntParameter(GlobalConstants.BUFFER_SIZE_FIELD);
         assert bufferSize != null;

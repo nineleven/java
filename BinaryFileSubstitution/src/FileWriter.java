@@ -13,7 +13,7 @@ public class FileWriter implements IWriter {
     private IExecutable producer;
     private IExecutable consumer;
 
-    private Logger logger;
+    private final Logger logger;
 
     private int bufferSize;
 
@@ -67,6 +67,10 @@ public class FileWriter implements IWriter {
 
         Config cfg = res.first;
 
+        if (!getSemanticCfgValidator().validate(cfg)) {
+            return RC.CODE_CONFIG_SEMANTIC_ERROR;
+        }
+
         Integer bufferSize = cfg.getIntParameter(GlobalConstants.BUFFER_SIZE_FIELD);
         assert bufferSize != null;
 
@@ -77,6 +81,10 @@ public class FileWriter implements IWriter {
 
     @Override
     public RC execute(byte[] data) {
+
+        /*
+        ADD BUFFERED OUTPUT
+         */
 
         if (data == null) {
             logger.severe("Invalid writer input");

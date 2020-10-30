@@ -10,11 +10,8 @@ public class PipelineManager implements IConfigurable {
     private String inputFileName;
     private String outputFileName;
 
-    private String inputConfigFileName;
-    private String outputConfigFileName;
-    private String substitutorConfigFileName;
-
-    private String readerClassName, writerClassName, executorClassName;
+    private String[] workerConfigFilenames;
+    private String[] workerNames;
 
     private Logger logger;
 
@@ -39,8 +36,7 @@ public class PipelineManager implements IConfigurable {
 
         Config cfg = res.first;
 
-        SemanticConfigValidator validator = getSemanticConfigValidator();
-        if (!validator.validate(cfg)) {
+        if (!getSemanticConfigValidator().validate(cfg)) {
             return RC.CODE_CONFIG_SEMANTIC_ERROR;
         }
 
@@ -92,36 +88,23 @@ public class PipelineManager implements IConfigurable {
     }
 
     /*
-    Пока 3 фиксированных работника reader, executor, writer
+    ПРОВЕРКИИИ
      */
     private Pair<IPipelineStep[], RC> createWorkers(FileInputStream inputStream, FileOutputStream outputStream) {
-        Pair<IReader, RC> readerRes = createReader(inputStream);
-        if (readerRes.first == null) {
-            logger.severe("Failed to create a reader");
-            return new Pair<>(null, readerRes.second);
+        IPipelineStep[] steps = new IPipelineStep[workerNames.length];
+
+        for (int workerId = 0; workerId < workerNames.length; ++workerId) {
+            steps[workerId] = createWorker(workerNames[workerId]);
+            ((IConfigurable)steps[workerId]).setConfig(workerConfigFilenames[workerId]);
         }
-        IReader reader = readerRes.first;
 
-        Pair<IWriter, RC> writerRes = createWriter(outputStream);
-        if (writerRes.first == null) {
-            logger.severe("Failed to create a reader");
-            return new Pair<>(null, writerRes.second);
-        }
-        IWriter writer = writerRes.first;
+        ((IReader)steps[0]).setInputStream(inputStream);
+        ((IWriter)steps[steps.length-1]).setOutputStream(outputStream);
 
-        Pair<IExecutor, RC> executorRes = createExecutor();
-        if (executorRes.first == null) {
-            logger.severe("Failed to create a reader");
-            return new Pair<>(null, executorRes.second);
-        }
-        IExecutor executor = executorRes.first;
-
-        IPipelineStep[] workers = new IPipelineStep[] {reader, executor, writer};
-
-        return new Pair<>(workers, RC.CODE_SUCCESS);
+        return new Pair<>(steps, RC.CODE_SUCCESS);
     }
 
-    private IPipelineStep createPipelineStep(String className) {
+    private IPipelineStep createWorker(String className) {
         IPipelineStep step;
         try {
             Class clazz = Class.forName(className);
@@ -134,54 +117,6 @@ public class PipelineManager implements IConfigurable {
             return null;
         }
         return step;
-    }
-
-    private Pair<IReader, RC> createReader(FileInputStream inputStream) {
-        IReader reader = (IReader) createPipelineStep(readerClassName);
-        if (reader == null) {
-            logger.severe("Failed to create a reader");
-            return new Pair<>(null, RC.CODE_FAILED_PIPELINE_CONSTRUCTION);
-        }
-        RC retCode = reader.setConfig(inputConfigFileName);
-        if (retCode != RC.CODE_SUCCESS) {
-            logger.severe("Failed to construct a reader config");
-            return new Pair<>(null, retCode);
-        }
-
-        reader.setInputStream(inputStream);
-
-        return new Pair<>(reader, RC.CODE_SUCCESS);
-    }
-
-    private Pair<IWriter, RC> createWriter(FileOutputStream outputStream) {
-        IWriter writer = (IWriter) createPipelineStep(writerClassName);
-        if (writer == null) {
-            logger.severe("Failed to create a writer");
-            return new Pair<>(null, RC.CODE_FAILED_PIPELINE_CONSTRUCTION);
-        }
-        RC retCode = writer.setConfig(outputConfigFileName);
-        if (retCode != RC.CODE_SUCCESS) {
-            logger.severe("Failed to construct a writer config");
-            return new Pair<>(null, retCode);
-        }
-
-        writer.setOutputStream(outputStream);
-
-        return new Pair<>(writer, RC.CODE_SUCCESS);
-    }
-
-    private Pair<IExecutor, RC> createExecutor() {
-        IExecutor executor = (IExecutor) createPipelineStep(executorClassName);
-        if (executor == null) {
-            logger.severe("Failed to create an executor");
-            return new Pair<>(null, RC.CODE_FAILED_PIPELINE_CONSTRUCTION);
-        }
-        RC retCode = executor.setConfig(substitutorConfigFileName);
-        if (retCode != RC.CODE_SUCCESS) {
-            logger.severe("Failed to construct an executor config");
-            return new Pair<>(null, retCode);
-        }
-        return new Pair<>(executor, RC.CODE_SUCCESS);
     }
 
     private void putWorkersInChain(IPipelineStep[] workers) {
@@ -212,47 +147,47 @@ public class PipelineManager implements IConfigurable {
         svMap.put(GlobalConstants.INPUT_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_EXISTING_FILE);
         svMap.put(GlobalConstants.OUTPUT_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_IS_PRESENT);
 
-        svMap.put(GlobalConstants.INPUT_CONFIG_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_EXISTING_FILE);
-        svMap.put(GlobalConstants.OUTPUT_CONFIG_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_EXISTING_FILE);
-        svMap.put(GlobalConstants.EXECUTOR_CONFIG_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_EXISTING_FILE);
-
-        svMap.put(GlobalConstants.READER_CLASSNAME_FIELD, SemanticConfigValidator.ConfigFieldType.FT_CLASS_NAME);
-        svMap.put(GlobalConstants.WRITER_CLASSNAME_FIELD, SemanticConfigValidator.ConfigFieldType.FT_CLASS_NAME);
-        svMap.put(GlobalConstants.EXECUTOR_CLASSNAME_FIELD, SemanticConfigValidator.ConfigFieldType.FT_CLASS_NAME);
+        svMap.put(GlobalConstants.PIPELINE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_PIPELINE);
 
         return new SemanticConfigValidator(svMap, logger);
+    }
+
+    private void setWorkers(String pipeline) {
+        String[] workers = pipeline.split(";");
+
+        workerNames = new String[workers.length];
+        workerConfigFilenames = new String[workers.length];
+
+        for (int k = 0; k < workers.length; ++k) {
+            String[] workerParams = workers[k].split(",");
+
+            assert workerParams.length == 2;
+
+            for (int i = 0; i < workerParams.length; ++i) {
+                workerParams[i] = workerParams[i].trim();
+            }
+
+            workerNames[k] = workerParams[0];
+            workerConfigFilenames[k] = workerParams[1];
+        }
     }
 
     private void setFieldsFromConfig(Config cfg) {
         String inputFileName = cfg.getParameter(GlobalConstants.INPUT_FILE_FIELD);
         String outputFileName = cfg.getParameter(GlobalConstants.OUTPUT_FILE_FIELD);
 
-        String inputConfigFileName = cfg.getParameter(GlobalConstants.INPUT_CONFIG_FILE_FIELD);
-        String outputConfigFileName = cfg.getParameter(GlobalConstants.OUTPUT_CONFIG_FILE_FIELD);
-        String substitutorConfigFileName = cfg.getParameter(GlobalConstants.EXECUTOR_CONFIG_FILE_FIELD);
-
-        String readerClassName = cfg.getParameter(GlobalConstants.READER_CLASSNAME_FIELD);
-        String writerClassName = cfg.getParameter(GlobalConstants.WRITER_CLASSNAME_FIELD);
-        String executorClassName = cfg.getParameter(GlobalConstants.EXECUTOR_CLASSNAME_FIELD);
+        String pipeline = cfg.getParameter(GlobalConstants.PIPELINE_FIELD);
 
         /*
         We know that these fields should be non-null,
         since semantic validator ensures that.
         */
         assert (inputFileName != null && outputFileName != null &&
-                inputConfigFileName != null && outputConfigFileName != null &&
-                readerClassName != null && writerClassName != null &&
-                executorClassName != null);
+                pipeline != null);
+
+        setWorkers(pipeline);
 
         this.inputFileName = inputFileName;
         this.outputFileName = outputFileName;
-
-        this.inputConfigFileName = inputConfigFileName;
-        this.outputConfigFileName = outputConfigFileName;
-        this.substitutorConfigFileName = substitutorConfigFileName;
-
-        this.readerClassName = readerClassName;
-        this.writerClassName = writerClassName;
-        this.executorClassName = executorClassName;
     }
 }

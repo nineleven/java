@@ -6,12 +6,13 @@ import java.util.logging.Logger;
 
 public class SubstitutionTable {
 
-    private HashMap<Byte, Byte> table;
+    private final HashMap<Byte, Byte> table;
 
-    private Logger logger;
+    private final Logger logger;
 
     private SubstitutionTable(HashMap<Byte, Byte> table, Logger logger) {
         this.table = table;
+        this.logger = logger;
     }
 
     public byte Substitute(byte x) {
@@ -41,10 +42,6 @@ public class SubstitutionTable {
     private static boolean isValidTable(HashMap<Byte, Byte> map) {
         boolean[] present = new boolean[256];
 
-        for (int i = 0; i < present.length; ++i) {
-            present[i] = false;
-        }
-
         for(Map.Entry<Byte, Byte> entry: map.entrySet()) {
             if (!map.containsKey(entry.getValue())) {
                 return false;
@@ -65,7 +62,7 @@ public class SubstitutionTable {
         );
         if (res.first == null) {
             logger.severe("Failed to read a table from " + filename);
-            return new Pair(null, res.second);
+            return new Pair<>(null, res.second);
         }
 
         HashMap<String, String> stringTable = res.first;
@@ -73,17 +70,17 @@ public class SubstitutionTable {
         HashMap<Byte, Byte> byteTable = StringTableToByte(stringTable);
         if (byteTable == null) {
             logger.severe("Failed to convert table to byte");
-            return new Pair(null, RC.CODE_CONFIG_SEMANTIC_ERROR);
+            return new Pair<>(null, RC.CODE_CONFIG_SEMANTIC_ERROR);
         }
 
         if (!isValidTable(byteTable)) {
             logger.severe("Invalid mapping");
-            return new Pair(null, RC.CODE_CONFIG_SEMANTIC_ERROR);
+            return new Pair<>(null, RC.CODE_CONFIG_SEMANTIC_ERROR);
         }
 
         SubstitutionTable table = new SubstitutionTable(byteTable, logger);
 
-        return new Pair(table, RC.CODE_SUCCESS);
+        return new Pair<>(table, RC.CODE_SUCCESS);
     }
 
     private static HashMap<Byte, Byte> StringTableToByte(HashMap<String, String> stringTable) {

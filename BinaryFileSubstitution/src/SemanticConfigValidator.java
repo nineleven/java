@@ -1,3 +1,4 @@
+import ru.spbstu.pipeline.IConfigurable;
 import ru.spbstu.pipeline.IPipelineStep;
 
 import java.io.File;
@@ -7,15 +8,16 @@ import java.util.logging.Logger;
 
 public class SemanticConfigValidator {
 
-    private HashMap<String, ConfigFieldType> fieldTypes;
+    private final HashMap<String, ConfigFieldType> fieldTypes;
 
-    private Logger logger;
+    private final Logger logger;
 
     public enum ConfigFieldType {
         FT_IS_PRESENT,
         FT_EXISTING_FILE,
         FT_INT,
-        FT_CLASS_NAME
+        FT_CLASS_NAME,
+        FT_PIPELINE
     }
 
     public SemanticConfigValidator(HashMap<String, ConfigFieldType> fieldTypes,
@@ -50,11 +52,41 @@ public class SemanticConfigValidator {
 
     private boolean validateClassName(String value) {
         try {
-             Class clazz = Class.forName(value);
-             return IPipelineStep.class.isAssignableFrom(clazz);
+             Class cl = Class.forName(value);
+             return IPipelineStep.class.isAssignableFrom(cl);
         } catch (ClassNotFoundException e) {
             return false;
         }
+    }
+
+    private boolean validatePipeline(String value) {
+        for (String worker : value.split(";")) {
+            String[] workerParams = worker.split(",");
+
+            if (workerParams.length != 2) {
+                return false;
+            }
+
+            for (int i = 0; i < workerParams.length; ++i) {
+                workerParams[i] = workerParams[i].trim();
+            }
+
+            if (!validateClassName(workerParams[0]) ||
+                    !validateExistingFile(workerParams[1])) {
+                return false;
+            }
+
+            try {
+                Class cl = Class.forName(workerParams[0]);
+                if (!IConfigurable.class.isAssignableFrom(cl) ||
+                        !IPipelineStep.class.isAssignableFrom(cl)) {
+                    return false;
+                }
+            } catch (ClassNotFoundException e) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean validateFieldType(String value, ConfigFieldType expectedType) {
@@ -72,6 +104,9 @@ public class SemanticConfigValidator {
                 break;
             case FT_CLASS_NAME:
                 isValid = validateClassName(value);
+                break;
+            case FT_PIPELINE:
+                isValid = validatePipeline(value);
                 break;
             default:
                 logger.warning("Unknown config field type:" + expectedType);
