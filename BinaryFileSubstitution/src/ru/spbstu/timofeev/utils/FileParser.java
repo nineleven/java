@@ -1,3 +1,5 @@
+package ru.spbstu.timofeev.utils;
+
 import ru.spbstu.pipeline.RC;
 
 import java.io.*;
@@ -10,18 +12,10 @@ public class FileParser {
         try {
             stream.close();
         }
-        catch (IOException ex) {
-            // net tak net
-        }
+        catch (IOException ex) { }
     }
 
-    /*
-     reads key value pairs from file in to a hashmap
-     each string of file except empty strings should be in the following format:
-     key[any number of space characters]delimiter[any number of space characters]value
-     returns null in case of IO exception or if a line of wrong format was found
-     */
-    public static Pair<HashMap<String, String>, RC> readMap(String filename, String delimiter, Logger logger) {
+    public static Pair<HashMap<String, String>, RC> readMap(String filename, PipelineBaseGrammar grammar, Logger logger) {
         FileInputStream inputStream;
         try {
             inputStream = new FileInputStream(filename);
@@ -41,7 +35,7 @@ public class FileParser {
                     continue;
                 }
 
-                Pair<String, String> keyValPair = parseKeyValue(line, delimiter);
+                Pair<String, String> keyValPair = parseKeyValue(line, grammar);
                 if (keyValPair == null) {
                     logger.warning("Unable to parse a key value pair from line: " + line);
                     return new Pair<>(null, RC.CODE_CONFIG_GRAMMAR_ERROR);
@@ -64,14 +58,21 @@ public class FileParser {
         return new Pair<>(map, RC.CODE_SUCCESS);
     }
 
-    private static Pair<String, String> parseKeyValue(String line, String delimiter) {
-        String[] split = line.split(delimiter);
+    private static Pair<String, String> parseKeyValue(String line, PipelineBaseGrammar grammar) {
+        String[] split = line.split(grammar.delimiter());
 
         if (split.length != 2) {
             return null;
         }
         else {
-            return new Pair<>(split[0].trim(), split[1].trim());
+            String key = split[0].trim();
+            String val = split[1].trim();
+
+            if (!grammar.containsToken(key)) {
+                return null;
+            }
+
+            return new Pair<>(key, val);
         }
     }
 }

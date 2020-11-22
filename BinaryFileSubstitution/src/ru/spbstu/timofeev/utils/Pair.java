@@ -1,7 +1,9 @@
+package ru.spbstu.timofeev.utils;
+
 public class Pair<T, U> {
 
-    final T first;
-    final U second;
+    public final T first;
+    public final U second;
 
     public Pair(T first, U second) {
         this.first = first;

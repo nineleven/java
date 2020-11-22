@@ -1,11 +1,81 @@
+package ru.spbstu.timofeev.workers;
+
 import ru.spbstu.pipeline.IExecutable;
 import ru.spbstu.pipeline.IWriter;
 import ru.spbstu.pipeline.RC;
+import ru.spbstu.timofeev.config.BaseSemantics;
+import ru.spbstu.timofeev.config.Config;
+import ru.spbstu.timofeev.utils.Pair;
+import ru.spbstu.timofeev.utils.PipelineBaseGrammar;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.logging.Logger;
+
+class WriterGrammar extends PipelineBaseGrammar {
+
+    private static final String[] tokens;
+
+    static {
+        WriterSemantics.Fields[] fValues = WriterSemantics.Fields.values();
+
+        tokens = new String[fValues.length];
+
+        for (int i = 0; i < fValues.length; ++i) {
+            tokens[i] = fValues[i].toString();
+        }
+    }
+
+    public WriterGrammar() {
+        super(tokens);
+    }
+
+    public enum Fields {
+        BUFFER_SIZE("buffer_size");
+
+        private final String name;
+
+        Fields(String name) {
+            this.name = name;
+        }
+
+        public String toString() {
+            return this.name;
+        }
+    }
+}
+
+class WriterSemantics extends BaseSemantics {
+
+    public WriterSemantics(Logger logger) {
+        super(logger);
+    }
+
+    @Override
+    public boolean validateField(String fieldName, String fieldValue) {
+        if (fieldName.equals(Fields.BUFFER_SIZE.toString())) {
+            return BaseSemantics.validatePositiveInt(fieldValue);
+        }
+        else {
+            getLogger().warning("Unknown field validation queried: " + fieldName);
+        }
+        return true;
+    }
+
+    public enum Fields {
+        BUFFER_SIZE("buffer_size");
+
+        private final String name;
+
+        Fields(String name) {
+            this.name = name;
+        }
+
+        public String toString() {
+            return this.name;
+        }
+    }
+}
 
 public class FileWriter implements IWriter {
     private FileOutputStream stream;
@@ -24,7 +94,7 @@ public class FileWriter implements IWriter {
     @Override
     public RC setOutputStream(FileOutputStream fileOutputStream) {
         if (fileOutputStream == null) {
-            logger.warning("An invalid output stream passed to writer");
+            logger.warning("Invalid output stream passed to writer");
             return RC.CODE_INVALID_ARGUMENT;
         }
         stream = fileOutputStream;
@@ -50,16 +120,11 @@ public class FileWriter implements IWriter {
         return RC.CODE_SUCCESS;
     }
 
-    private SemanticConfigValidator getSemanticCfgValidator() {
-        HashMap<String, SemanticConfigValidator.ConfigFieldType> svMap;
-        svMap = new HashMap<>();
-        svMap.put(GlobalConstants.BUFFER_SIZE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_POSITIVE_INT);
-        return new SemanticConfigValidator(svMap, logger);
-    }
+
 
     @Override
     public RC setConfig(String configFileName) {
-        Pair<Config, RC> res = Config.fromFile(configFileName, GlobalConstants.CONFIG_DELIMITER, logger);
+        Pair<Config, RC> res = Config.fromFile(configFileName, new WriterGrammar(), new WriterSemantics(logger), logger);
         if (res.first == null) {
             logger.warning("Failed to read writer config from " + configFileName);
             return res.second;
@@ -67,11 +132,7 @@ public class FileWriter implements IWriter {
 
         Config cfg = res.first;
 
-        if (!getSemanticCfgValidator().validate(cfg)) {
-            return RC.CODE_CONFIG_SEMANTIC_ERROR;
-        }
-
-        Integer bufferSize = cfg.getIntParameter(GlobalConstants.BUFFER_SIZE_FIELD);
+        Integer bufferSize = cfg.getIntParameter(WriterGrammar.Fields.BUFFER_SIZE.toString());
         assert bufferSize != null;
 
         this.bufferSize = bufferSize;
@@ -81,11 +142,6 @@ public class FileWriter implements IWriter {
 
     @Override
     public RC execute(byte[] data) {
-
-        /*
-        ADD BUFFERED OUTPUT
-         */
-
         if (data == null) {
             logger.severe("Invalid writer input");
             return RC.CODE_INVALID_ARGUMENT;

@@ -1,4 +1,9 @@
+package ru.spbstu.timofeev.workers;
+
 import ru.spbstu.pipeline.RC;
+import ru.spbstu.timofeev.utils.FileParser;
+import ru.spbstu.timofeev.utils.Pair;
+import ru.spbstu.timofeev.utils.PipelineBaseGrammar;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,15 +30,15 @@ public class SubstitutionTable {
         }
     }
 
-    public RC Substitute(byte[] bytes, byte[] output) {
+    public RC Substitute(byte[] data) {
 
-        if (bytes == null) {
+        if (data == null) {
             logger.warning("Invalid substitution input");
             return RC.CODE_INVALID_ARGUMENT;
         }
 
-        for (int i = 0; i < bytes.length; ++i) {
-            output[i] = Substitute(bytes[i]);
+        for (int i = 0; i < data.length; ++i) {
+            data[i] = Substitute(data[i]);
         }
 
         return RC.CODE_SUCCESS;
@@ -57,8 +62,22 @@ public class SubstitutionTable {
 
     public static Pair<SubstitutionTable, RC> fromFile(String filename, Logger logger) {
 
+        PipelineBaseGrammar tableGrammar = new PipelineBaseGrammar(new String[] {}) {
+            private final String delimiter = "=>";
+
+            @Override
+            public String delimiter() {
+                return delimiter;
+            }
+
+            @Override
+            public boolean containsToken(String token) {
+                return true;
+            }
+        } ;
+
         Pair<HashMap<String, String>, RC> res = FileParser.readMap(
-                filename, GlobalConstants.TABLE_DELIMITER, logger
+                filename, tableGrammar, logger
         );
         if (res.first == null) {
             logger.severe("Failed to read a table from " + filename);

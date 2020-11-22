@@ -1,9 +1,66 @@
+package ru.spbstu.timofeev.workers;
+
 import ru.spbstu.pipeline.IExecutable;
 import ru.spbstu.pipeline.IExecutor;
 import ru.spbstu.pipeline.RC;
+import ru.spbstu.timofeev.config.BaseSemantics;
+import ru.spbstu.timofeev.config.Config;
+import ru.spbstu.timofeev.utils.Pair;
+import ru.spbstu.timofeev.utils.PipelineBaseGrammar;
 
-import java.util.HashMap;
 import java.util.logging.Logger;
+
+class SubstitutorGrammar extends PipelineBaseGrammar {
+
+    private static final String[] tokens;
+
+    static {
+        SubstitutorSemantics.Fields[] fValues = SubstitutorSemantics.Fields.values();
+
+        tokens = new String[fValues.length];
+
+        for (int i = 0; i < fValues.length; ++i) {
+            tokens[i] = fValues[i].toString();
+        }
+    }
+
+    public SubstitutorGrammar() {
+        super(tokens);
+    }
+}
+
+class SubstitutorSemantics extends BaseSemantics {
+
+    public SubstitutorSemantics(Logger logger) {
+        super(logger);
+    }
+
+    @Override
+    public boolean validateField(String fieldName, String fieldValue) {
+        if (fieldName.equals(Fields.TABLE_FILE.toString())) {
+            return BaseSemantics.validateExistingFile(fieldValue);
+        }
+        else {
+            getLogger().warning("Unknown field validation queried: " + fieldName);
+        }
+        return true;
+    }
+
+    public enum Fields {
+        TABLE_FILE("table_file");
+
+        private final String name;
+
+        Fields(String name) {
+            this.name = name;
+        }
+
+        public String toString() {
+            return this.name;
+        }
+    }
+}
+
 
 public class Substitutor implements IExecutor {
 
@@ -40,16 +97,9 @@ public class Substitutor implements IExecutor {
         return RC.CODE_SUCCESS;
     }
 
-    private SemanticConfigValidator getSemanticCfgValidator() {
-        HashMap<String, SemanticConfigValidator.ConfigFieldType> svMap;
-        svMap = new HashMap<>();
-        svMap.put(GlobalConstants.TABLE_FILE_FIELD, SemanticConfigValidator.ConfigFieldType.FT_EXISTING_FILE);
-        return new SemanticConfigValidator(svMap, logger);
-    }
-
     @Override
     public RC setConfig(String configFileName) {
-        Pair<Config, RC> res = Config.fromFile(configFileName, GlobalConstants.CONFIG_DELIMITER, logger);
+        Pair<Config, RC> res = Config.fromFile(configFileName, new SubstitutorGrammar(), new SubstitutorSemantics(logger), logger);
         if (res.first == null) {
             logger.severe("Failed to read substitutor config");
             return res.second;
@@ -57,11 +107,7 @@ public class Substitutor implements IExecutor {
 
         Config cfg = res.first;
 
-        if (!getSemanticCfgValidator().validate(cfg)) {
-            return RC.CODE_CONFIG_SEMANTIC_ERROR;
-        }
-
-        String tableFilename = cfg.getParameter(GlobalConstants.TABLE_FILE_FIELD);
+        String tableFilename = cfg.getParameter(SubstitutorSemantics.Fields.TABLE_FILE.toString());
         assert  tableFilename != null;
 
         Pair<SubstitutionTable, RC> tableRes = SubstitutionTable.fromFile(tableFilename, logger);
@@ -83,18 +129,16 @@ public class Substitutor implements IExecutor {
             return RC.CODE_INVALID_ARGUMENT;
         }
 
-        byte[] outputBytes = new byte[data.length];
-
-        RC retCode = table.Substitute(data, outputBytes);
+        RC retCode = table.Substitute(data);
         if (retCode != RC.CODE_SUCCESS) {
             logger.severe("Substitution error");
             return retCode;
         }
 
-        retCode = consumer.execute(outputBytes);
+        retCode = consumer.execute(data);
 
         if(retCode != RC.CODE_SUCCESS) {
-            logger.severe("Substitutor consumer execution error");
+            logger.severe("ru.spbstu.timofeev.workers.Substitutor consumer execution error");
         }
 
         return retCode;

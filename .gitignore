@@ -1,3 +1,7 @@
 .idea/
 out/
 *.iml
+Executor/
+Manager/
+Reader/
+Writer/

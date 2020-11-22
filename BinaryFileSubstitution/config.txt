@@ -1,4 +1,4 @@
 input_file = input.txt
 output_file = output.txt
 
-pipeline = FileReader, reader_config.txt; Substitutor, substitutor_config.txt; FileWriter, writer_config.txt
+pipeline = ru.spbstu.timofeev.workers.FileReader, reader_config.txt; ru.spbstu.timofeev.workers.Substitutor, substitutor_config.txt; ru.spbstu.timofeev.workers.FileWriter, writer_config.txt
