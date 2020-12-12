@@ -216,9 +216,13 @@ public class PipelineManager implements IConfigurable {
 
         IPipelineStep[] workers = resWorkers.first;
 
-        putWorkersInChain(workers);
+        RC retCode = putWorkersInChain(workers);
+        if (retCode != RC.CODE_SUCCESS) {
+            logger.severe("Unable to put workers into a chain");
+            return RC.CODE_FAILED_PIPELINE_CONSTRUCTION;
+        }
 
-        RC retCode = workers[0].execute(null);
+        retCode = ((IConsumer)workers[0]).execute();
 
         closeStream(inputStream);
         closeStream(outputStream);
@@ -306,9 +310,8 @@ public class PipelineManager implements IConfigurable {
             IPipelineStep worker = createWorker(workerTemplates[workerId].first);
 
             assert worker != null;
-            assert IConfigurable.class.isAssignableFrom(worker.getClass());
 
-            RC rc = ((IConfigurable)worker).setConfig(workerTemplates[workerId].second);
+            RC rc = worker.setConfig(workerTemplates[workerId].second);
             if (rc != RC.CODE_SUCCESS) {
                 return new Pair<>(null, rc);
             }
@@ -345,12 +348,22 @@ public class PipelineManager implements IConfigurable {
         return step;
     }
 
-    private void putWorkersInChain(IPipelineStep[] workers) {
+    private RC putWorkersInChain(IPipelineStep[] workers) {
         assert workers != null;
 
         for(int i = 0; i < workers.length - 1; ++i) {
-            workers[i].setConsumer(workers[i+1]);
-            workers[i+1].setProducer(workers[i]);
+            RC retCode;
+            retCode = workers[i].setConsumer((IConsumer) workers[i+1]);
+            if (retCode != RC.CODE_SUCCESS) {
+                logger.warning("Unable to set a consumer on step " + i);
+                return retCode;
+            }
+            retCode = workers[i+1].setProducer((IProducer) workers[i]);
+            if (retCode != RC.CODE_SUCCESS) {
+                logger.warning("Unable to set a producer on step " + i);
+                return retCode;
+            }
         }
+        return RC.CODE_SUCCESS;
     }
 }

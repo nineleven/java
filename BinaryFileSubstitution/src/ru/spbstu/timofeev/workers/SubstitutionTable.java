@@ -63,11 +63,10 @@ public class SubstitutionTable {
     public static Pair<SubstitutionTable, RC> fromFile(String filename, Logger logger) {
 
         PipelineBaseGrammar tableGrammar = new PipelineBaseGrammar(new String[] {}) {
-            private final String delimiter = "=>";
 
             @Override
             public String delimiter() {
-                return delimiter;
+                return "=>";
             }
 
             @Override

@@ -1,10 +1,9 @@
 package ru.spbstu.timofeev.workers;
 
-import ru.spbstu.pipeline.IExecutable;
-import ru.spbstu.pipeline.IReader;
-import ru.spbstu.pipeline.RC;
+import ru.spbstu.pipeline.*;
 import ru.spbstu.timofeev.config.BaseSemantics;
 import ru.spbstu.timofeev.config.Config;
+import ru.spbstu.timofeev.utils.Buffer;
 import ru.spbstu.timofeev.utils.Pair;
 import ru.spbstu.timofeev.utils.PipelineBaseGrammar;
 
@@ -63,17 +62,21 @@ class ReaderSemantics extends BaseSemantics {
     }
 }
 
-
 public class FileReader implements IReader {
 
     private FileInputStream stream;
 
-    private IExecutable producer;
-    private IExecutable consumer;
+    private IConsumer consumer;
+
+    private Buffer outputBuffer;
 
     private final Logger logger;
 
     private int bufferSize;
+
+    private final TYPE[] outputTypes = {TYPE.BYTE, TYPE.SHORT};
+
+    private boolean finishing;
 
     public FileReader(Logger logger) {
         this.logger = logger;
@@ -90,7 +93,7 @@ public class FileReader implements IReader {
     }
 
     @Override
-    public RC setConsumer(IExecutable newConsumer) {
+    public RC setConsumer(IConsumer newConsumer) {
         if (newConsumer == null) {
             logger.warning("Invalid consumer");
             return RC.CODE_INVALID_ARGUMENT;
@@ -101,9 +104,7 @@ public class FileReader implements IReader {
     }
 
     @Override
-    public RC setProducer(IExecutable newProducer) {
-        producer = newProducer;
-
+    public RC setProducer(IProducer newProducer) {
         return RC.CODE_SUCCESS;
     }
 
@@ -122,8 +123,49 @@ public class FileReader implements IReader {
         assert bufferSize != null;
 
         this.bufferSize = bufferSize;
+        this.outputBuffer = new Buffer(bufferSize);
 
         return RC.CODE_SUCCESS;
+    }
+
+    @Override
+    public TYPE[] getOutputTypes() {
+        return outputTypes;
+    }
+
+    @Override
+    public IMediator getMediator(TYPE type) {
+        switch (type) {
+            case BYTE:
+                return new ByteMediator();
+            case SHORT:
+                return new ShortMediator();
+            default:
+                logger.warning("Mediator of type " + type + " is not implemented");
+                return null;
+        }
+    }
+
+    class ByteMediator implements IMediator {
+        @Override
+        public Object getData() {
+            byte[] data = outputBuffer.take();
+            if (data.length == 0 && finishing) {
+                return null;
+            }
+            return data;
+        }
+    }
+
+    class ShortMediator implements IMediator {
+        @Override
+        public Object getData() {
+            short[] data = outputBuffer.takeShort();
+            if (data.length == 0 && finishing) {
+                return null;
+            }
+            return data;
+        }
     }
 
     private int readBytePortion(byte[] buffer, int bufferSize) {
@@ -134,33 +176,53 @@ public class FileReader implements IReader {
             logger.severe("IO exception while reading");
             return -1;
         }
+
+        if (bytesRead < 0) {
+            return 0;
+        }
+
         return bytesRead;
     }
 
     @Override
-    public RC execute(byte[] data) {
+    public RC execute() {
         if (stream == null) {
             logger.severe("Invalid input stream");
             return RC.CODE_INVALID_INPUT_STREAM;
         }
 
         byte[] buffer = new byte[bufferSize];
-
         int bytesRead;
+
+        finishing = false;
 
         while(true) {
             bytesRead = readBytePortion(buffer, bufferSize);
-            if (bytesRead < 1) {
+            if (bytesRead < 0) {
+                logger.severe("FileReader failed to read");
+                return RC.CODE_FAILED_TO_READ;
+            }
+            else if (bytesRead == 0) {
+                finishing = true;
+
+                RC retCode = consumer.execute();
+                if (retCode != RC.CODE_SUCCESS) {
+                    logger.severe("Reader consumer execution error");
+                    return retCode;
+                }
+
                 break;
             }
 
-            byte[] output = new byte[bytesRead];
-            System.arraycopy(buffer, 0, output, 0, bytesRead);
+            assert (bytesRead <= outputBuffer.capacity());
+            outputBuffer.put(buffer, 0, bytesRead);
 
-            RC retCode = consumer.execute(output);
-            if (retCode != RC.CODE_SUCCESS) {
-                logger.severe("Reader consumer execution error");
-                return retCode;
+            while(!outputBuffer.isEmpty()) {
+                RC retCode = consumer.execute();
+                if (retCode != RC.CODE_SUCCESS) {
+                    logger.severe("Reader consumer execution error");
+                    return retCode;
+                }
             }
         }
 

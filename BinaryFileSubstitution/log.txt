@@ -1,0 +1,2 @@
+дек 12, 2020 1:08:34 PM ru.spbstu.timofeev.Main main
+INFO: DONE
